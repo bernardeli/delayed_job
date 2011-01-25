@@ -1,10 +1,13 @@
-require 'spec_helper'
+require 'mongoid/spec_helper'
 
 describe Delayed::MessageSending do
   describe "handle_asynchronously" do
-    class Story < ActiveRecord::Base
+    class Story 
+      include Mongoid::Document
+
       def tell!(arg)
       end
+
       handle_asynchronously :tell!
     end
 

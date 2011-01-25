@@ -1,4 +1,4 @@
-require 'spec_helper'
+require 'mongoid/spec_helper'
 
 describe Delayed::Worker do
   describe "backend=" do
@@ -12,21 +12,21 @@ describe Delayed::Worker do
     end
 
     it "should set backend with a symbol" do
-      Delayed::Worker.backend = :active_record
-      Delayed::Worker.backend.should == Delayed::Backend::ActiveRecord::Job
+      Delayed::Worker.backend = :mongoid
+      Delayed::Worker.backend.should == Delayed::Backend::Mongoid::Job
     end
   end
 
   describe "guess_backend" do
     after do
-      Delayed::Worker.backend = :active_record
+      Delayed::Worker.backend = :mongoid
     end
 
     it "should set to active_record if nil" do
       Delayed::Worker.backend = nil
       lambda {
         Delayed::Worker.guess_backend
-      }.should change { Delayed::Worker.backend }.to(Delayed::Backend::ActiveRecord::Job)
+      }.should change { Delayed::Worker.backend }.to(Delayed::Backend::Mongoid::Job)
     end
 
     it "should not override the existing backend" do
