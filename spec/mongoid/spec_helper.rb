@@ -10,24 +10,24 @@ class DelayedJob
   include Mongoid::Document
   include Mongoid::Timestamps
   
+  field :handler,     :type => String
+
   field :priority,    :type => Integer, :default => 0
   field :attempts,    :type => Integer, :default => 0
-  field :handler,     :type => String
+
   field :last_error,  :type => String
   field :run_at,      :type => Time
   field :locked_at,      :type => Time
   field :failed_at,      :type => Time
   field :locked_by,      :type => String
 
-  index :ssn, :unique => true
-
-  index(
-    [
-      [ :priority,  Mongo::DESCENDING ],
-      [ :run_at,    Mongo::ASCENDING  ]
-    ],
-    :unique => true
-  )
+  # index(
+  #   [
+  #     [ :priority,  Mongo::DESCENDING ],
+  #     [ :run_at,    Mongo::ASCENDING  ]
+  #   ],
+  #   :unique => true
+  # )
   
   # add_index :delayed_jobs, [:priority, :run_at], :name => 'delayed_jobs_priority'  
 end

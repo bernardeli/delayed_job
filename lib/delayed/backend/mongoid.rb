@@ -5,22 +5,29 @@ module Delayed
     module Mongoid
       # A job object that is persisted to the database.
       # Contains the work object as a YAML field.
-      class Job
-        include ::Mongoid::Document
+      class Job < DelayedJob
+        # include ::Mongoid::Document
         include Delayed::Backend::Base
 
         before_save :set_default_run_at
 
-        scope :ready_to_run, lambda {|worker_name, max_run_time|
+        def self.ready_to_run worker_name, max_run_time
           # where(['(run_at <= ? AND (locked_at IS NULL OR locked_at < ?) OR locked_by = ?) AND failed_at IS NULL', db_time_now, db_time_now - max_run_time, worker_name])
-          # where("function() {(return this.run_at <= #{db_time_now} && (this.locked_at < #{db_time_now - max_run_time}) || this.locked_by = '#{worker_name}') && !this.failed_at").first}
-          x = where(:run_at.lte => db_time_now).and(:locked_at.lt => db_time_now - max_run_time).first
-          y = where(:locked_by => worker_name).and(:failed_at => nil).first
-          !x.nil? || !y.nil?
-        }
+          where("function() {(return this.run_at <= #{db_time_now} && (this.locked_at < #{db_time_now - max_run_time}) || this.locked_by = '#{worker_name}') && !this.failed_at")
+          # run_at = where(:run_at.lte => db_time_now).and(:locked_at.lt => db_time_now - max_run_time)
+          # locked_by = where(:locked_by => worker_name).and(:failed_at => nil)
+          # run_at | locked_by
+        end
+
+        def self.worker_priority
+          return where(:priority.gte => Worker.min_priority) if Worker.min_priority
+          return where(:priority.lte => Worker.max_priority) if Worker.max_priority
+          where(:priority.gte => 0)
+        end
+        
         # scope :by_priority, order('priority ASC, run_at ASC')
-        scope :by_priority do 
-          Job.ascending(:priority).ascending(:run_at)
+        def self.by_priority 
+          ascending(:priority).ascending(:run_at)
         end
 
         def self.before_fork
@@ -39,12 +46,9 @@ module Delayed
 
         # Find a few candidate jobs to run (in case some immediately get locked by others).
         def self.find_available(worker_name, limit = 5, max_run_time = Worker.max_run_time)
-          scope = self.ready_to_run(worker_name, max_run_time)
-
-          scope = scope.scoped(:priority.gte => Worker.min_priority) if Worker.min_priority
-          scope = scope.scoped(:priority.lte => Worker.max_priority) if Worker.max_priority
-          
-          scope.by_priority.all(:limit => limit)
+          # scope = scope.scoped(:priority.gte => Worker.min_priority) if Worker.min_priority
+          # scope = scope.scoped(:priority.lte => Worker.max_priority) if Worker.max_priority
+          ready_to_run(worker_name, max_run_time).worker_priority.by_priority.all(:limit => limit)                    
         end
 
         # Lock this job for this worker.
@@ -54,7 +58,7 @@ module Delayed
           affected_rows = if locked_by != worker
             # We don't own this job so we will update the locked_by name and the locked_at
             # self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?) and (run_at <= ?)", id, (now - max_run_time.to_i), now])
-            self.class.where(:id => id).and(:locked_at.lt => now - max_run_time.to_i).and(:run_at.lte <= now).update_all(:locked_at => now, :locked_by => worker).
+            self.class.where(:id => id).and(:locked_at.lt => now - max_run_time.to_i).and(:run_at.lte => now).update_all(:locked_at => now, :locked_by => worker).
           else
             # We already own this job, this may happen if the job queue crashes.
             # Simply resume and update the locked_at

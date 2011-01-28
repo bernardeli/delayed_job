@@ -72,6 +72,8 @@ module Delayed
 
       def payload_object=(object)
         @payload_object = object
+        puts "self: #{self.inspect}"
+        puts "handler: #{self.handler.inspect}"
         self.handler = object.to_yaml
       end
 
