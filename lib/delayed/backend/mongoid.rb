@@ -48,23 +48,27 @@ module Delayed
         def self.find_available(worker_name, limit = 5, max_run_time = Worker.max_run_time)
           # scope = scope.scoped(:priority.gte => Worker.min_priority) if Worker.min_priority
           # scope = scope.scoped(:priority.lte => Worker.max_priority) if Worker.max_priority
-          ready_to_run(worker_name, max_run_time).worker_priority.by_priority.all(:limit => limit)                    
+          ready_to_run(worker_name, max_run_time).worker_priority.by_priority.limit(limit)                    
         end
 
         # Lock this job for this worker.
         # Returns true if we have the lock, false otherwise.
         def lock_exclusively!(max_run_time, worker)
+          puts "lock_exclusively!: max_run_time = #{max_run_time}, worker: #{worker.inspect}"
           now = self.class.db_time_now
           affected_rows = if locked_by != worker
+            puts "not locked by worker"
             # We don't own this job so we will update the locked_by name and the locked_at
             # self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?) and (run_at <= ?)", id, (now - max_run_time.to_i), now])
             self.class.where(:id => id).and(:locked_at.lt => now - max_run_time.to_i).and(:run_at.lte => now).update_all(:locked_at => now, :locked_by => worker).
           else
+            puts "we already own it!"
             # We already own this job, this may happen if the job queue crashes.
             # Simply resume and update the locked_at
             self.class.where(:id => id).and(:locked_by => worker).update_all(:locked_at => now)
           end
           if affected_rows == 1
+            puts "one affected row - locking!"
             self.locked_at = now
             self.locked_by = worker
             self.locked_at_will_change!
